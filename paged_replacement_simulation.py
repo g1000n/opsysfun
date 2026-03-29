@@ -19,13 +19,14 @@ def calculate_rates(total_references, page_faults):
     return page_hits, failure_rate, success_rate
 
 
-def record_step(steps, step_number, page, frames, num_frames, result):
+def record_step(steps, step_number, page, frames, num_frames, result, interrupt):
     display_frames = frames[:] + ["-"] * (num_frames - len(frames))
     steps.append({
         "step": step_number,
         "page": page,
         "frames": display_frames,
-        "result": result
+        "result": result,
+        "interrupt": interrupt
     })
 
 
@@ -33,37 +34,38 @@ def print_results(algorithm_name, reference_string, num_frames, steps, page_faul
     total_references = len(reference_string)
     page_hits, failure_rate, success_rate = calculate_rates(total_references, page_faults)
 
-    print("\n" + "=" * 90)
+    print("\n" + "=" * 110)
     print(f"Algorithm: {algorithm_name}")
     print(f"Number of Pages: {total_references}")
     print(f"Number of Frames: {num_frames}")
     print("Page Reference String:", " ".join(map(str, reference_string)))
-    print("=" * 90)
+    print("=" * 110)
 
-    header = ["Step", "Page"] + [f"Frame{i+1}" for i in range(num_frames)] + ["Result"]
+    header = ["Step", "Page"] + [f"Frame{i+1}" for i in range(num_frames)] + ["Result", "Interrupt"]
     print(f"{header[0]:<8}{header[1]:<8}", end="")
     for i in range(num_frames):
         print(f"{header[i+2]:<10}", end="")
-    print(f"{header[-1]:<10}")
+    print(f"{header[-2]:<12}{header[-1]:<12}")
 
-    print("-" * 90)
+    print("-" * 110)
 
     for step in steps:
         print(f"{step['step']:<8}{step['page']:<8}", end="")
         for frame_value in step["frames"]:
             print(f"{str(frame_value):<10}", end="")
-        print(f"{step['result']:<10}")
+        print(f"{step['result']:<12}{step['interrupt']:<12}")
 
-    print("-" * 90)
+    print("-" * 110)
     print(f"Total Page Faults (Failures): {page_faults}")
     print(f"Total Page Hits (Successes): {page_hits}")
     print(f"Failure Rate: {failure_rate:.2f}%")
     print(f"Success Rate: {success_rate:.2f}%")
-    print("=" * 90)
+    print("=" * 110)
 
 
 # =========================================================
 # FIFO
+# Replace the oldest page in memory.
 # =========================================================
 def fifo(reference_string, num_frames):
     frames = []
@@ -74,8 +76,10 @@ def fifo(reference_string, num_frames):
     for i, page in enumerate(reference_string, start=1):
         if page in frames:
             result = "Hit"
+            interrupt = "No"
         else:
             result = "Fault"
+            interrupt = "Yes"
             page_faults += 1
 
             if len(frames) < num_frames:
@@ -84,13 +88,14 @@ def fifo(reference_string, num_frames):
                 frames[pointer] = page
                 pointer = (pointer + 1) % num_frames
 
-        record_step(steps, i, page, frames, num_frames, result)
+        record_step(steps, i, page, frames, num_frames, result, interrupt)
 
     return steps, page_faults
 
 
 # =========================================================
 # LRU
+# Replace the page that has not been used for the longest time.
 # =========================================================
 def lru(reference_string, num_frames):
     frames = []
@@ -101,8 +106,10 @@ def lru(reference_string, num_frames):
     for i, page in enumerate(reference_string, start=1):
         if page in frames:
             result = "Hit"
+            interrupt = "No"
         else:
             result = "Fault"
+            interrupt = "Yes"
             page_faults += 1
 
             if len(frames) < num_frames:
@@ -113,13 +120,14 @@ def lru(reference_string, num_frames):
                 frames[replace_index] = page
 
         last_used[page] = i
-        record_step(steps, i, page, frames, num_frames, result)
+        record_step(steps, i, page, frames, num_frames, result, interrupt)
 
     return steps, page_faults
 
 
 # =========================================================
 # MRU
+# Replace the page that was used most recently.
 # =========================================================
 def mru(reference_string, num_frames):
     frames = []
@@ -130,8 +138,10 @@ def mru(reference_string, num_frames):
     for i, page in enumerate(reference_string, start=1):
         if page in frames:
             result = "Hit"
+            interrupt = "No"
         else:
             result = "Fault"
+            interrupt = "Yes"
             page_faults += 1
 
             if len(frames) < num_frames:
@@ -142,13 +152,15 @@ def mru(reference_string, num_frames):
                 frames[replace_index] = page
 
         last_used[page] = i
-        record_step(steps, i, page, frames, num_frames, result)
+        record_step(steps, i, page, frames, num_frames, result, interrupt)
 
     return steps, page_faults
 
 
 # =========================================================
 # OPTIMAL
+# Replace the page that will not be used for the longest time
+# in the future.
 # =========================================================
 def optimal(reference_string, num_frames):
     frames = []
@@ -160,8 +172,10 @@ def optimal(reference_string, num_frames):
 
         if page in frames:
             result = "Hit"
+            interrupt = "No"
         else:
             result = "Fault"
+            interrupt = "Yes"
             page_faults += 1
 
             if len(frames) < num_frames:
@@ -180,13 +194,16 @@ def optimal(reference_string, num_frames):
                 replace_index = frames.index(page_to_replace)
                 frames[replace_index] = page
 
-        record_step(steps, i, page, frames, num_frames, result)
+        record_step(steps, i, page, frames, num_frames, result, interrupt)
 
     return steps, page_faults
 
 
 # =========================================================
 # SECOND CHANCE
+# FIFO with reference bits:
+# - if bit is 1, reset to 0 and move on
+# - replace only when bit is 0
 # =========================================================
 def second_chance(reference_string, num_frames):
     frames = []
@@ -198,10 +215,12 @@ def second_chance(reference_string, num_frames):
     for i, page in enumerate(reference_string, start=1):
         if page in frames:
             result = "Hit"
+            interrupt = "No"
             page_index = frames.index(page)
             reference_bits[page_index] = 1
         else:
             result = "Fault"
+            interrupt = "Yes"
             page_faults += 1
 
             if len(frames) < num_frames:
@@ -218,7 +237,7 @@ def second_chance(reference_string, num_frames):
                         reference_bits[pointer] = 0
                         pointer = (pointer + 1) % num_frames
 
-        record_step(steps, i, page, frames, num_frames, result)
+        record_step(steps, i, page, frames, num_frames, result, interrupt)
 
     return steps, page_faults
 
@@ -227,9 +246,9 @@ def second_chance(reference_string, num_frames):
 # MENU DISPLAY
 # =========================================================
 def display_menu():
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 55)
     print("PAGED REPLACEMENT SIMULATION")
-    print("=" * 50)
+    print("=" * 55)
     print("1. FIFO")
     print("2. LRU")
     print("3. MRU")
@@ -237,7 +256,7 @@ def display_menu():
     print("5. SECOND CHANCE")
     print("6. Run All Algorithms")
     print("7. Exit")
-    print("=" * 50)
+    print("=" * 55)
 
 
 # =========================================================
@@ -269,6 +288,48 @@ def get_user_input():
 
 
 # =========================================================
+# RUN SELECTED ALGORITHM
+# =========================================================
+def run_algorithm(choice, num_frames, reference_string):
+    if choice == "1":
+        steps, faults = fifo(reference_string, num_frames)
+        print_results("FIFO", reference_string, num_frames, steps, faults)
+
+    elif choice == "2":
+        steps, faults = lru(reference_string, num_frames)
+        print_results("LRU", reference_string, num_frames, steps, faults)
+
+    elif choice == "3":
+        steps, faults = mru(reference_string, num_frames)
+        print_results("MRU", reference_string, num_frames, steps, faults)
+
+    elif choice == "4":
+        steps, faults = optimal(reference_string, num_frames)
+        print_results("OPTIMAL", reference_string, num_frames, steps, faults)
+
+    elif choice == "5":
+        steps, faults = second_chance(reference_string, num_frames)
+        print_results("SECOND CHANCE", reference_string, num_frames, steps, faults)
+
+
+# =========================================================
+# RUN ALL ALGORITHMS
+# =========================================================
+def run_all_algorithms(num_frames, reference_string):
+    algorithms = [
+        ("FIFO", fifo),
+        ("LRU", lru),
+        ("MRU", mru),
+        ("OPTIMAL", optimal),
+        ("SECOND CHANCE", second_chance)
+    ]
+
+    for name, algorithm_function in algorithms:
+        steps, faults = algorithm_function(reference_string, num_frames)
+        print_results(name, reference_string, num_frames, steps, faults)
+
+
+# =========================================================
 # MAIN PROGRAM
 # =========================================================
 def main():
@@ -286,38 +347,10 @@ def main():
 
         num_frames, reference_string = get_user_input()
 
-        if choice == "1":
-            steps, faults = fifo(reference_string, num_frames)
-            print_results("FIFO", reference_string, num_frames, steps, faults)
-
-        elif choice == "2":
-            steps, faults = lru(reference_string, num_frames)
-            print_results("LRU", reference_string, num_frames, steps, faults)
-
-        elif choice == "3":
-            steps, faults = mru(reference_string, num_frames)
-            print_results("MRU", reference_string, num_frames, steps, faults)
-
-        elif choice == "4":
-            steps, faults = optimal(reference_string, num_frames)
-            print_results("OPTIMAL", reference_string, num_frames, steps, faults)
-
-        elif choice == "5":
-            steps, faults = second_chance(reference_string, num_frames)
-            print_results("SECOND CHANCE", reference_string, num_frames, steps, faults)
-
-        elif choice == "6":
-            algorithms = [
-                ("FIFO", fifo),
-                ("LRU", lru),
-                ("MRU", mru),
-                ("OPTIMAL", optimal),
-                ("SECOND CHANCE", second_chance)
-            ]
-
-            for name, algorithm_function in algorithms:
-                steps, faults = algorithm_function(reference_string, num_frames)
-                print_results(name, reference_string, num_frames, steps, faults)
+        if choice == "6":
+            run_all_algorithms(num_frames, reference_string)
+        else:
+            run_algorithm(choice, num_frames, reference_string)
 
 
 if __name__ == "__main__":
